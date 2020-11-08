@@ -33,18 +33,18 @@ class MyHomePage extends StatefulWidget {
 typedef NativeMemset = Pointer<Void> Function(Pointer<Uint8>, Int32, Uint64);
 typedef Memset = Pointer<Void> Function(Pointer<Uint8>, int, int);
 
-Pointer<Uint8> intListToArray(List<int> list) {
+Pointer<Uint8> Uint8ListToArray(Uint8List list) {
   final ptr = allocate<Uint8>(count: list.length);
   for (var i = 0; i < list.length; i++) {
-    ptr.elementAt(i).value = list[i];
+    ptr[i] = list[i];
   }
   return ptr;
 }
 
-List<int> arrayToIntList(Pointer<Uint8> ptr, int length) {
-  List<int> list = [];
+Uint8List arrayToUint8List(Pointer<Uint8> ptr, int length) {
+  Uint8List list = new Uint8List(length);
   for (var i = 0; i < length; i++) {
-    list.add(ptr[i]);
+    list[i] = ptr[i];
   }
   free(ptr);
   return list;
@@ -77,32 +77,52 @@ class _MyHomePageState extends State<MyHomePage> {
         ptr[idx] = 0;
       }
     }
-    print('ffiMemset, $kb, ${_usToAvgNs(sw.elapsedMicroseconds)}');
+    print('ffiMemset,$kb,${_usToAvgNs(sw.elapsedMicroseconds)}');
 
     free(ptr);
   }
 
-  void _measureFfiMemsetAndConvert(int kb) {
+  void _measureFfiMemsetWithListView(int kb) {
     final byte = kb * 1024;
-    List<int> list = new List(byte);
+    final Pointer<Uint8> ptr = allocate(count: byte);
+    Uint8List list = ptr.asTypedList(byte);
     list.fillRange(0, byte, 2);
 
     Stopwatch sw = new Stopwatch();
     for (int i = 0; i < kCount; i++) {
       sw.start();
-      final ptr = intListToArray(list);
       _memset(ptr, 1, byte);
-      final result = arrayToIntList(ptr, byte);
+      sw.stop();
+
+      for (int idx in [0, byte~/2, byte - 1]) {
+        assert(list[idx] == 1);
+      }
+    }
+    free(ptr);
+    print('ffiMemsetWithListView,$kb,${_usToAvgNs(sw.elapsedMicroseconds)}');
+  }
+
+  void _measureFfiMemsetAndConvert(int kb) {
+    final byte = kb * 1024;
+    Uint8List list = new Uint8List(byte);
+    list.fillRange(0, byte, 2);
+
+    Stopwatch sw = new Stopwatch();
+    for (int i = 0; i < kCount; i++) {
+      sw.start();
+      final ptr = Uint8ListToArray(list);
+      _memset(ptr, 1, byte);
+      final result = arrayToUint8List(ptr, byte);
       sw.stop();
 
       for (int idx in [0, byte~/2, byte - 1]) {
         assert(result[idx] == 1);
       }
     }
-    print('ffiMemsetAndConvert, $kb, ${_usToAvgNs(sw.elapsedMicroseconds)}');
+    print('ffiMemsetAndConvert,$kb,${_usToAvgNs(sw.elapsedMicroseconds)}');
   }
 
-  Future<int> _measureMethodChannelMemset(int kb) async {
+  void _measureMethodChannelMemset(int kb) async {
     final byte = kb * 1024;
     Uint8List list = new Uint8List(byte);
     list.fillRange(0, byte, 2);
@@ -117,8 +137,7 @@ class _MyHomePageState extends State<MyHomePage> {
         assert(result[idx] == 1);
       }
     }
-    print('MethodChannelMemset, $kb, ${_usToAvgNs(sw.elapsedMicroseconds)}');
-    return 0;
+    print('MethodChannelMemset,$kb,${_usToAvgNs(sw.elapsedMicroseconds)}');
   }
 
   void _onClick() async {
@@ -127,9 +146,10 @@ class _MyHomePageState extends State<MyHomePage> {
         .lookup<NativeFunction<NativeMemset>>('memset')
         .asFunction<Memset>();
 
-    print("type, dataSize[KB], time[ns]");
+    print("type,dataSize[KB],time[ns]");
     for (var kb = 1; kb <= 1024; kb *= 2) {
       _measureFfiMemset(kb);
+      _measureFfiMemsetWithListView(kb);
       _measureFfiMemsetAndConvert(kb);
       await _measureMethodChannelMemset(kb);
     }
