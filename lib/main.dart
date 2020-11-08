@@ -147,7 +147,7 @@ class _MyHomePageState extends State<MyHomePage> {
         .asFunction<Memset>();
 
     print("type,dataSize[KB],time[ns]");
-    for (var kb = 1; kb <= 1024; kb *= 2) {
+    for (var kb = 1; kb <= 8192; kb *= 2) {
       _measureFfiMemset(kb);
       _measureFfiMemsetWithListView(kb);
       _measureFfiMemsetAndConvert(kb);
